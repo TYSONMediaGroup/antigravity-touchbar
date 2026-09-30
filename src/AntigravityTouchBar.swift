@@ -1,6 +1,35 @@
 import AppKit
 import Carbon
 
+// MARK: - Dynamic DFRFoundation Bridge
+class DFRBridge {
+    typealias DFRElementSetControlStripPresenceForIdentifierFunc = @convention(c) (CFString, Bool) -> Void
+    typealias DFRSystemModalShowsCloseBoxWhenFrontMostFunc = @convention(c) (Bool) -> Void
+    
+    static let shared = DFRBridge()
+    private var setPresenceFunc: DFRElementSetControlStripPresenceForIdentifierFunc?
+    private var setCloseBoxFunc: DFRSystemModalShowsCloseBoxWhenFrontMostFunc?
+    
+    init() {
+        if let handle = dlopen("/System/Library/PrivateFrameworks/DFRFoundation.framework/DFRFoundation", RTLD_NOW) {
+            if let sym = dlsym(handle, "DFRElementSetControlStripPresenceForIdentifier") {
+                setPresenceFunc = unsafeBitCast(sym, to: DFRElementSetControlStripPresenceForIdentifierFunc.self)
+            }
+            if let sym = dlsym(handle, "DFRSystemModalShowsCloseBoxWhenFrontMost") {
+                setCloseBoxFunc = unsafeBitCast(sym, to: DFRSystemModalShowsCloseBoxWhenFrontMostFunc.self)
+            }
+        }
+    }
+    
+    func setControlStripPresence(identifier: String, presence: Bool) {
+        setPresenceFunc?(identifier as CFString, presence)
+    }
+    
+    func setCloseBox(shows: Bool) {
+        setCloseBoxFunc?(shows)
+    }
+}
+
 // MARK: - Private NSTouchBar Selectors
 private let presentSel = NSSelectorFromString("presentSystemModalTouchBar:systemTrayItemIdentifier:")
 private let dismissSel = NSSelectorFromString("dismissSystemModalTouchBar:")
@@ -98,6 +127,8 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     }
     
     private func setupControlStrip() {
+        DFRBridge.shared.setCloseBox(shows: true)
+        
         let item = NSCustomTouchBarItem(identifier: trayItemId)
         let btn = NSButton(title: "AGY ✦", target: self, action: #selector(toggleTouchBar))
         btn.bezelStyle = .rounded
@@ -108,11 +139,15 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         if (NSTouchBarItem.self as AnyObject).responds(to: addTraySel) {
             _ = (NSTouchBarItem.self as AnyObject).perform(addTraySel, with: item)
         }
+        DFRBridge.shared.setControlStripPresence(identifier: trayItemId.rawValue, presence: true)
     }
     
     // MARK: - NSTouchBarDelegate
     func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {
         switch identifier {
+        case trayItemId:
+            return trayItem
+            
         case closeItemId:
             let item = NSCustomTouchBarItem(identifier: identifier)
             let btn = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close") ?? NSImage(), target: self, action: #selector(dismissTouchBar))
@@ -155,9 +190,9 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     }
     
     func presentTouchBar() {
-        guard let tb = touchBar, let tray = trayItem else { return }
+        guard let tb = touchBar else { return }
         if NSTouchBar.responds(to: presentSel) {
-            _ = NSTouchBar.perform(presentSel, with: tb, with: tray.identifier)
+            _ = NSTouchBar.perform(presentSel, with: tb, with: trayItemId.rawValue as NSString)
             isPresented = true
         }
     }
@@ -252,8 +287,7 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     }
     
     // MARK: - Send Keystroke to Active Terminal
-    private func sendKeystrokeToTerminal(_ str: String) {
-        // Find target terminal app: Ghostty preferred, then fall back to active app
+    private func sendKeystrokeToTerminal(_ charStr: String) {
         let targetBundleIds = [
             "com.mitchellh.ghostty",
             "com.apple.Terminal",
@@ -270,16 +304,42 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
             }
         }
         
-        if let app = targetApp {
-            app.activate()
-            usleep(25000) // 25ms delay to ensure focus
+        guard let app = targetApp else { return }
+        
+        // 1. Activate terminal app
+        app.activate()
+        
+        // 2. Post CGEvents directly to PID
+        let pid = app.processIdentifier
+        let cleanChar = charStr.replacingOccurrences(of: "\n", with: "").lowercased()
+        
+        var keyCode: CGKeyCode?
+        switch cleanChar {
+        case "y": keyCode = 0x10 // kVK_ANSI_Y
+        case "n": keyCode = 0x2D // kVK_ANSI_N
+        case "a": keyCode = 0x00 // kVK_ANSI_A
+        default: break
+        }
+        
+        if let key = keyCode {
+            let src = CGEventSource(stateID: .hidSystemState)
+            let keyDown = CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: true)
+            let keyUp = CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: false)
+            keyDown?.postToPid(pid)
+            keyUp?.postToPid(pid)
             
-            let charToSend = str.replacingOccurrences(of: "\n", with: "")
+            // Post Return (kVK_Return = 0x24)
+            let returnDown = CGEvent(keyboardEventSource: src, virtualKey: 0x24, keyDown: true)
+            let returnUp = CGEvent(keyboardEventSource: src, virtualKey: 0x24, keyDown: false)
+            returnDown?.postToPid(pid)
+            returnUp?.postToPid(pid)
+        } else {
+            // Fallback via AppleScript System Events
             let processName = app.localizedName ?? "terminal"
             let scriptSource = """
             tell application "System Events"
                 tell process "\(processName)"
-                    keystroke "\(charToSend)"
+                    keystroke "\(cleanChar)"
                     key code 36
                 end tell
             end tell

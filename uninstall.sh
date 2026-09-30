@@ -16,7 +16,7 @@ if [[ -f "$PLIST_PATH" ]]; then
 fi
 
 # 2. Kill daemon process if running
-killall antigravity-touchbar 2>/dev/null || true
+pkill -f "antigravity-touchbar" 2>/dev/null || true
 
 # 3. Remove hook from ~/.gemini/config/hooks.json
 python3 - << 'EOF'
@@ -36,8 +36,10 @@ if os.path.exists(config_path):
         pass
 EOF
 
-# 4. Remove binaries
+# 4. Remove binaries and app bundle
+rm -rf "$HOME/.gemini/antigravity-cli/bin/AntigravityTouchBar.app"
 rm -f "$HOME/.gemini/antigravity-cli/bin/antigravity-touchbar"
 rm -f "$HOME/.gemini/antigravity-cli/scripts/touchbar_hook.py"
+rm -f "$HOME/.gemini/antigravity-cli/touchbar_state.json"
 
 echo -e "\n${GREEN}=== Uninstallation Complete ===${NC}"

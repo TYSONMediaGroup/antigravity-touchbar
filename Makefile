@@ -1,8 +1,11 @@
 .PHONY: build install uninstall test run clean
 
 build:
-	@echo "Compiling AntigravityTouchBar..."
-	swiftc -O -o bin/antigravity-touchbar src/AntigravityTouchBar.swift
+	@echo "Compiling AntigravityTouchBar.app..."
+	@mkdir -p bin/AntigravityTouchBar.app/Contents/MacOS
+	@cp resources/Info.plist bin/AntigravityTouchBar.app/Contents/
+	@swiftc -O -o bin/AntigravityTouchBar.app/Contents/MacOS/antigravity-touchbar src/AntigravityTouchBar.swift
+	@echo "Built bin/AntigravityTouchBar.app"
 
 install:
 	@./install.sh
@@ -11,7 +14,7 @@ uninstall:
 	@./uninstall.sh
 
 run: build
-	@bin/antigravity-touchbar
+	@open bin/AntigravityTouchBar.app
 
 test:
 	@python3 hooks/touchbar_hook.py pre_invocation <<< '{}'

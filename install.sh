@@ -4,6 +4,7 @@ set -e
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
@@ -37,11 +38,16 @@ LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 
 mkdir -p "$TARGET_BIN_DIR" "$TARGET_SCRIPTS_DIR" "$TARGET_CONFIG_DIR" "$TARGET_TOUCHBAR_DIR" "$LAUNCH_AGENTS_DIR"
 
-# 4. Compile Swift Daemon
+# 4. Compile Native macOS App Bundle
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_BUNDLE="$TARGET_BIN_DIR/AntigravityTouchBar.app"
+rm -rf "$APP_BUNDLE"
+mkdir -p "$APP_BUNDLE/Contents/MacOS"
+
 echo "Compiling native Touch Bar daemon..."
-swiftc -O -o "$TARGET_BIN_DIR/antigravity-touchbar" "$SCRIPT_DIR/src/AntigravityTouchBar.swift"
-echo -e "${GREEN}✓ Compiled antigravity-touchbar binary${NC}"
+swiftc -O -o "$APP_BUNDLE/Contents/MacOS/antigravity-touchbar" "$SCRIPT_DIR/src/AntigravityTouchBar.swift"
+cp "$SCRIPT_DIR/resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+echo -e "${GREEN}✓ Built AntigravityTouchBar.app bundle${NC}"
 
 # 5. Copy Hook Script
 cp "$SCRIPT_DIR/hooks/touchbar_hook.py" "$TARGET_SCRIPTS_DIR/touchbar_hook.py"
@@ -61,7 +67,14 @@ if [[ ! -f "$HOME/.gemini/antigravity-cli/touchbar_state.json" ]]; then
 EOF
 fi
 
-# 7. Merge Hook into ~/.gemini/config/hooks.json
+# 7. Ensure Touch Bar Control Strip is enabled
+CURRENT_MODE=$(defaults read com.apple.touchbar.agent PresentationModeGlobal 2>/dev/null || echo "appWithControlStrip")
+if [[ "$CURRENT_MODE" == "app" ]]; then
+    echo -e "${YELLOW}Enabling macOS Control Strip so 'AGY ✦' icon is visible...${NC}"
+    defaults write com.apple.touchbar.agent PresentationModeGlobal -string appWithControlStrip
+fi
+
+# 8. Merge Hook into ~/.gemini/config/hooks.json
 python3 - << 'EOF'
 import json, os
 
@@ -120,7 +133,7 @@ with open(config_path, "w") as f:
 print("✓ Registered lifecycle hooks in ~/.gemini/config/hooks.json")
 EOF
 
-# 8. Setup macOS LaunchAgent
+# 9. Setup macOS LaunchAgent
 PLIST_PATH="$LAUNCH_AGENTS_DIR/com.google.antigravity.touchbar.plist"
 cat << EOF > "$PLIST_PATH"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -131,7 +144,7 @@ cat << EOF > "$PLIST_PATH"
     <string>com.google.antigravity.touchbar</string>
     <key>ProgramArguments</key>
     <array>
-        <string>$TARGET_BIN_DIR/antigravity-touchbar</string>
+        <string>$APP_BUNDLE/Contents/MacOS/antigravity-touchbar</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -145,11 +158,12 @@ cat << EOF > "$PLIST_PATH"
 </plist>
 EOF
 
-# 9. Reload LaunchAgent
+# 10. Reload LaunchAgent
+pkill -f "antigravity-touchbar" 2>/dev/null || true
 launchctl unload "$PLIST_PATH" 2>/dev/null || true
 launchctl load "$PLIST_PATH"
 echo -e "${GREEN}✓ Loaded background LaunchAgent${NC}"
 
 echo -e "\n${GREEN}=== Installation Complete! ===${NC}"
 echo "You will now see 'AGY ✦' on your MacBook Touch Bar Control Strip."
-echo "Live thinking states, command notifications, and [ ✓ Yes ] / [ ✗ No ] buttons are active!"
+echo "Live thinking states, command prompts, and [ ✓ Yes ] / [ ✗ No ] touch controls are ready!"

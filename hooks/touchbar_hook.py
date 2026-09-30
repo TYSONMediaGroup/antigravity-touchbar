@@ -11,11 +11,13 @@ import time
 import subprocess
 
 STATE_FILE = os.path.expanduser("~/.gemini/antigravity-cli/touchbar_state.json")
-DAEMON_BIN = os.path.expanduser("~/.gemini/antigravity-cli/bin/antigravity-touchbar")
+APP_DAEMON_BIN = os.path.expanduser("~/.gemini/antigravity-cli/bin/AntigravityTouchBar.app/Contents/MacOS/antigravity-touchbar")
+LEGACY_DAEMON_BIN = os.path.expanduser("~/.gemini/antigravity-cli/bin/antigravity-touchbar")
+DAEMON_BIN = APP_DAEMON_BIN if os.path.exists(APP_DAEMON_BIN) else LEGACY_DAEMON_BIN
 
 def ensure_daemon_running():
     try:
-        res = subprocess.run(["pgrep", "-x", "antigravity-touchbar"], stdout=subprocess.DEVNULL)
+        res = subprocess.run(["pgrep", "-f", "antigravity-touchbar"], stdout=subprocess.DEVNULL)
         if res.returncode != 0 and os.path.exists(DAEMON_BIN):
             subprocess.Popen([DAEMON_BIN], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     except Exception:
