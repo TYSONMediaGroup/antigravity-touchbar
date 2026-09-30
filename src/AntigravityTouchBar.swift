@@ -1,34 +1,12 @@
 import AppKit
 import Carbon
 
-// MARK: - Dynamic DFRFoundation Bridge
-class DFRBridge {
-    typealias DFRElementSetControlStripPresenceForIdentifierFunc = @convention(c) (CFString, Bool) -> Void
-    typealias DFRSystemModalShowsCloseBoxWhenFrontMostFunc = @convention(c) (Bool) -> Void
-    
-    static let shared = DFRBridge()
-    private var setPresenceFunc: DFRElementSetControlStripPresenceForIdentifierFunc?
-    private var setCloseBoxFunc: DFRSystemModalShowsCloseBoxWhenFrontMostFunc?
-    
-    init() {
-        if let handle = dlopen("/System/Library/PrivateFrameworks/DFRFoundation.framework/DFRFoundation", RTLD_NOW) {
-            if let sym = dlsym(handle, "DFRElementSetControlStripPresenceForIdentifier") {
-                setPresenceFunc = unsafeBitCast(sym, to: DFRElementSetControlStripPresenceForIdentifierFunc.self)
-            }
-            if let sym = dlsym(handle, "DFRSystemModalShowsCloseBoxWhenFrontMost") {
-                setCloseBoxFunc = unsafeBitCast(sym, to: DFRSystemModalShowsCloseBoxWhenFrontMostFunc.self)
-            }
-        }
-    }
-    
-    func setControlStripPresence(identifier: String, presence: Bool) {
-        setPresenceFunc?(identifier as CFString, presence)
-    }
-    
-    func setCloseBox(shows: Bool) {
-        setCloseBoxFunc?(shows)
-    }
-}
+// MARK: - Direct DFRFoundation Symbols
+@_silgen_name("DFRElementSetControlStripPresenceForIdentifier")
+func DFRElementSetControlStripPresenceForIdentifier(_ identifier: NSString, _ present: Bool)
+
+@_silgen_name("DFRSystemModalShowsCloseBoxWhenFrontMost")
+func DFRSystemModalShowsCloseBoxWhenFrontMost(_ shows: Bool)
 
 // MARK: - Private NSTouchBar Selectors
 private let presentSel = NSSelectorFromString("presentSystemModalTouchBar:systemTrayItemIdentifier:")
@@ -36,36 +14,35 @@ private let dismissSel = NSSelectorFromString("dismissSystemModalTouchBar:")
 private let addTraySel = NSSelectorFromString("addSystemTrayItem:")
 private let removeTraySel = NSSelectorFromString("removeSystemTrayItem:")
 
-// MARK: - Vector Antigravity Logo Generator
-func makeAntigravityLogo(size: NSSize = NSSize(width: 16, height: 16), color: NSColor = NSColor(calibratedRed: 0.35, green: 0.70, blue: 1.0, alpha: 1.0)) -> NSImage {
-    let img = NSImage(size: size, flipped: false) { rect in
-        let path = NSBezierPath()
-        let cx = rect.midX
-        let cy = rect.midY
-        let r = min(rect.width, rect.height) * 0.46
-        let inner = r * 0.20
-        
-        path.move(to: NSPoint(x: cx, y: cy + r))
-        path.curve(to: NSPoint(x: cx + r, y: cy),
-                   controlPoint1: NSPoint(x: cx + inner, y: cy + inner),
-                   controlPoint2: NSPoint(x: cx + inner, y: cy + inner))
-        path.curve(to: NSPoint(x: cx, y: cy - r),
-                   controlPoint1: NSPoint(x: cx + inner, y: cy - inner),
-                   controlPoint2: NSPoint(x: cx + inner, y: cy - inner))
-        path.curve(to: NSPoint(x: cx - r, y: cy),
-                   controlPoint1: NSPoint(x: cx - inner, y: cy - inner),
-                   controlPoint2: NSPoint(x: cx - inner, y: cy - inner))
-        path.curve(to: NSPoint(x: cx, y: cy + r),
-                   controlPoint1: NSPoint(x: cx - inner, y: cy + inner),
-                   controlPoint2: NSPoint(x: cx - inner, y: cy + inner))
-        path.close()
-        
-        color.setFill()
-        path.fill()
-        return true
+// MARK: - Official Antigravity Vector Logo Generator
+func makeAntigravityLogo(size: NSSize = NSSize(width: 16, height: 16)) -> NSImage {
+    // Official Google Antigravity rocket-chevron vector glyph
+    let svgString = """
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="\(Int(size.width))" height="\(Int(size.height))">
+      <path fill="white" fill-rule="evenodd" d="M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z"/>
+    </svg>
+    """
+    if let data = svgString.data(using: .utf8), let img = NSImage(data: data) {
+        img.size = size
+        img.isTemplate = true
+        return img
     }
-    img.isTemplate = false
-    return img
+    return NSImage()
+}
+
+// MARK: - Vertically Centered Label Cell
+class VerticallyCenteredTextFieldCell: NSTextFieldCell {
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        var newRect = super.drawingRect(forBounds: rect)
+        let textSize = cellSize(forBounds: rect)
+        // Adjust vertically so font baseline sits optically dead-center in the Touch Bar strip
+        let deltaY = (rect.height - textSize.height) / 2.0 + 1.0
+        if deltaY > 0 {
+            newRect.origin.y += deltaY
+            newRect.size.height -= deltaY
+        }
+        return newRect
+    }
 }
 
 // MARK: - State Model
@@ -103,13 +80,12 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     
     // Animation & Timers
     private var pulseTimer: Timer?
-    private var autoDismissTimer: Timer?
     private var spinnerIndex = 0
     private var wavePhase = 0
     private var activeAnimText = ""
     private var isAnimating = false
     
-    // CLI Terminal Dot Frames
+    // CLI Terminal Braille Dot Orbit Frames
     private let spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     
     private var currentState: AgentState = AgentState(state: "idle", title: "Ready", detail: nil, showYesNo: false, command: nil)
@@ -124,18 +100,24 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         startFileWatcher()
     }
     
-    // MARK: - UI Construction (Terminal Inspired - Zero Emojis)
+    // MARK: - UI Construction (Terminal-Matched, Optically Centered)
     private func setupUI() {
-        // 1. Antigravity Logo
-        logoImageView = NSImageView(image: makeAntigravityLogo(size: NSSize(width: 15, height: 15)))
+        // 1. Official Antigravity Rocket Logo
+        let logoImg = makeAntigravityLogo(size: NSSize(width: 14, height: 14))
+        logoImageView = NSImageView(image: logoImg)
         logoImageView.imageScaling = .scaleProportionallyDown
         logoImageView.setContentHuggingPriority(.required, for: .horizontal)
         logoImageView.translatesAutoresizingMaskIntoConstraints = false
         logoImageView.heightAnchor.constraint(equalToConstant: 30).isActive = true
-        logoImageView.widthAnchor.constraint(equalToConstant: 22).isActive = true
+        logoImageView.widthAnchor.constraint(equalToConstant: 20).isActive = true
         
-        // 2. Status Label with Monospaced Terminal Typography
-        statusLabel = NSTextField(labelWithString: "Antigravity Ready")
+        // 2. Status Label with Vertically Centered Custom Cell
+        statusLabel = NSTextField(frame: NSRect(x: 0, y: 0, width: 400, height: 30))
+        statusLabel.cell = VerticallyCenteredTextFieldCell(textCell: "Antigravity Ready")
+        statusLabel.isEditable = false
+        statusLabel.isSelectable = false
+        statusLabel.isBordered = false
+        statusLabel.backgroundColor = .clear
         statusLabel.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)
         statusLabel.textColor = NSColor(calibratedRed: 0.75, green: 0.80, blue: 0.90, alpha: 1.0)
         statusLabel.alignment = .left
@@ -149,7 +131,7 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         closeButton = NSButton(title: " Esc ", target: self, action: #selector(dismissTouchBar))
         closeButton.bezelStyle = .rounded
         closeButton.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .bold)
-        closeButton.bezelColor = NSColor(calibratedRed: 0.20, green: 0.22, blue: 0.26, alpha: 1.0)
+        closeButton.bezelColor = NSColor(calibratedRed: 0.18, green: 0.20, blue: 0.24, alpha: 1.0)
         
         // 4. Yes Button (Terminal Green - No Emojis)
         yesButton = NSButton(title: " Yes (y) ", target: self, action: #selector(handleYes))
@@ -186,21 +168,22 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     }
     
     private func setupControlStrip() {
-        DFRBridge.shared.setCloseBox(shows: true)
+        DFRSystemModalShowsCloseBoxWhenFrontMost(true)
         
         let item = NSCustomTouchBarItem(identifier: trayItemId)
         let btn = NSButton(title: " AGY", target: self, action: #selector(toggleTouchBar))
         btn.bezelStyle = .rounded
-        btn.image = makeAntigravityLogo(size: NSSize(width: 13, height: 13))
+        btn.image = makeAntigravityLogo(size: NSSize(width: 14, height: 14))
         btn.imagePosition = .imageLeft
         btn.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .bold)
+        btn.sizeToFit()
         item.view = btn
         self.trayItem = item
         
         if (NSTouchBarItem.self as AnyObject).responds(to: addTraySel) {
             _ = (NSTouchBarItem.self as AnyObject).perform(addTraySel, with: item)
         }
-        DFRBridge.shared.setControlStripPresence(identifier: trayItemId.rawValue, presence: true)
+        DFRElementSetControlStripPresenceForIdentifier(trayItemId.rawValue as NSString, true)
     }
     
     // MARK: - NSTouchBarDelegate
@@ -296,7 +279,6 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     func update(state: AgentState) {
         DispatchQueue.main.async {
             self.currentState = state
-            self.autoDismissTimer?.invalidate()
             
             // Buttons are strictly hidden unless showYesNo is explicitly true
             let showButtons = state.showYesNo ?? false
@@ -334,10 +316,7 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
             case "idle":
                 self.stopPulseAnimation()
                 self.statusLabel.stringValue = "Antigravity Ready"
-                // Auto-minimize after 5 seconds of idle to restore normal Touch Bar
-                self.autoDismissTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-                    self?.dismissTouchBar()
-                }
+                // Keep Antigravity Ready visible on Touch Bar; user can tap Esc to dismiss anytime
                 
             default:
                 self.stopPulseAnimation()

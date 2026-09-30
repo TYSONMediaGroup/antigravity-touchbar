@@ -4,7 +4,7 @@ build:
 	@echo "Compiling AntigravityTouchBar.app..."
 	@mkdir -p bin/AntigravityTouchBar.app/Contents/MacOS
 	@cp resources/Info.plist bin/AntigravityTouchBar.app/Contents/
-	@swiftc -O -o bin/AntigravityTouchBar.app/Contents/MacOS/antigravity-touchbar src/AntigravityTouchBar.swift
+	@swiftc -O -F /System/Library/PrivateFrameworks -framework DFRFoundation -o bin/AntigravityTouchBar.app/Contents/MacOS/antigravity-touchbar src/AntigravityTouchBar.swift
 	@echo "Built bin/AntigravityTouchBar.app"
 
 install:

@@ -45,7 +45,7 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 
 echo "Compiling native Touch Bar daemon..."
-swiftc -O -o "$APP_BUNDLE/Contents/MacOS/antigravity-touchbar" "$SCRIPT_DIR/src/AntigravityTouchBar.swift"
+swiftc -O -F /System/Library/PrivateFrameworks -framework DFRFoundation -o "$APP_BUNDLE/Contents/MacOS/antigravity-touchbar" "$SCRIPT_DIR/src/AntigravityTouchBar.swift"
 cp "$SCRIPT_DIR/resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 echo -e "${GREEN}[OK] Built AntigravityTouchBar.app bundle${NC}"
 
