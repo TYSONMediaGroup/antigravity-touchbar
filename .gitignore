@@ -1,0 +1,13 @@
+# Build artifacts
+bin/
+*.o
+*.dSYM
+
+# macOS system files
+.DS_Store
+*.swp
+*.tmp
+
+# User logs & runtime state
+touchbar.log
+touchbar_state.json
