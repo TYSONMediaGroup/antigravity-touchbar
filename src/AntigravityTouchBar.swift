@@ -280,8 +280,8 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         DispatchQueue.main.async {
             self.currentState = state
             
-            // Buttons are strictly hidden unless showYesNo is explicitly true
-            let showButtons = state.showYesNo ?? false
+            // Buttons are visible whenever not thinking (commands, prompts, actions, ready)
+            let showButtons = (state.state != "thinking")
             self.yesButton.isHidden = !showButtons
             self.noButton.isHidden = !showButtons
             self.alwaysButton.isHidden = !showButtons

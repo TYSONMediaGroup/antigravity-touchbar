@@ -69,12 +69,12 @@ def main():
             write_state(state="confirm", title="Confirm Choice", detail="Select Option", show_yes_no=True, command="Select Option")
         elif tool_name == "run_command":
             cmd = args.get("CommandLine", "").strip()
-            write_state(state="running", title="Running", detail=cmd, show_yes_no=False, command=cmd)
+            write_state(state="running", title="Running", detail=cmd, show_yes_no=True, command=cmd)
         elif tool_name in ("write_to_file", "replace_file_content"):
             target = os.path.basename(args.get("TargetFile", ""))
-            write_state(state="running", title="Writing", detail=target, show_yes_no=False, command=f"Edit {target}")
+            write_state(state="running", title="Writing", detail=target, show_yes_no=True, command=f"Edit {target}")
         else:
-            write_state(state="running", title="Executing", detail=tool_name, show_yes_no=False, command=tool_name)
+            write_state(state="running", title="Executing", detail=tool_name, show_yes_no=True, command=tool_name)
             
         # CRITICAL: PreToolUse contract requires decision: "allow"
         print(json.dumps({"decision": "allow"}))
