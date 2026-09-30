@@ -36,9 +36,41 @@ private let dismissSel = NSSelectorFromString("dismissSystemModalTouchBar:")
 private let addTraySel = NSSelectorFromString("addSystemTrayItem:")
 private let removeTraySel = NSSelectorFromString("removeSystemTrayItem:")
 
+// MARK: - Vector Antigravity Logo Generator
+func makeAntigravityLogo(size: NSSize = NSSize(width: 16, height: 16), color: NSColor = NSColor(calibratedRed: 0.35, green: 0.70, blue: 1.0, alpha: 1.0)) -> NSImage {
+    let img = NSImage(size: size, flipped: false) { rect in
+        let path = NSBezierPath()
+        let cx = rect.midX
+        let cy = rect.midY
+        let r = min(rect.width, rect.height) * 0.46
+        let inner = r * 0.20
+        
+        path.move(to: NSPoint(x: cx, y: cy + r))
+        path.curve(to: NSPoint(x: cx + r, y: cy),
+                   controlPoint1: NSPoint(x: cx + inner, y: cy + inner),
+                   controlPoint2: NSPoint(x: cx + inner, y: cy + inner))
+        path.curve(to: NSPoint(x: cx, y: cy - r),
+                   controlPoint1: NSPoint(x: cx + inner, y: cy - inner),
+                   controlPoint2: NSPoint(x: cx + inner, y: cy - inner))
+        path.curve(to: NSPoint(x: cx - r, y: cy),
+                   controlPoint1: NSPoint(x: cx - inner, y: cy - inner),
+                   controlPoint2: NSPoint(x: cx - inner, y: cy - inner))
+        path.curve(to: NSPoint(x: cx, y: cy + r),
+                   controlPoint1: NSPoint(x: cx - inner, y: cy + inner),
+                   controlPoint2: NSPoint(x: cx - inner, y: cy + inner))
+        path.close()
+        
+        color.setFill()
+        path.fill()
+        return true
+    }
+    img.isTemplate = false
+    return img
+}
+
 // MARK: - State Model
 struct AgentState: Codable {
-    var state: String       // "idle", "thinking", "confirm", "command", "tool_done"
+    var state: String       // "idle", "thinking", "running", "confirm", "done"
     var title: String?
     var detail: String?
     var showYesNo: Bool?
@@ -52,6 +84,7 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     
     private let trayItemId = NSTouchBarItem.Identifier("com.google.antigravity.touchbar.tray")
     private let closeItemId = NSTouchBarItem.Identifier("com.google.antigravity.touchbar.close")
+    private let logoItemId = NSTouchBarItem.Identifier("com.google.antigravity.touchbar.logo")
     private let statusItemId = NSTouchBarItem.Identifier("com.google.antigravity.touchbar.status")
     private let yesItemId = NSTouchBarItem.Identifier("com.google.antigravity.touchbar.yes")
     private let noItemId = NSTouchBarItem.Identifier("com.google.antigravity.touchbar.no")
@@ -61,18 +94,25 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     private var trayItem: NSCustomTouchBarItem?
     
     // UI Elements
+    private var logoImageView: NSImageView!
     private var statusLabel: NSTextField!
     private var yesButton: NSButton!
     private var noButton: NSButton!
     private var alwaysButton: NSButton!
+    private var closeButton: NSButton!
     
     // Animation & Timers
-    private var thinkingTimer: Timer?
+    private var pulseTimer: Timer?
     private var autoDismissTimer: Timer?
     private var spinnerIndex = 0
+    private var wavePhase = 0
+    private var activeAnimText = ""
+    private var isAnimating = false
+    
+    // CLI Terminal Dot Frames
     private let spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     
-    private var currentState: AgentState = AgentState(state: "idle", title: "Antigravity", detail: nil, showYesNo: false, command: nil)
+    private var currentState: AgentState = AgentState(state: "idle", title: "Ready", detail: nil, showYesNo: false, command: nil)
     private var isPresented = false
     private var lastTimestamp: Double = 0.0
     
@@ -84,32 +124,50 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         startFileWatcher()
     }
     
-    // MARK: - UI Construction
+    // MARK: - UI Construction (Terminal Inspired - Zero Emojis)
     private func setupUI() {
-        statusLabel = NSTextField(labelWithString: "✨ Antigravity Ready")
-        statusLabel.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold)
-        statusLabel.textColor = .white
+        // 1. Antigravity Logo
+        logoImageView = NSImageView(image: makeAntigravityLogo(size: NSSize(width: 15, height: 15)))
+        logoImageView.imageScaling = .scaleProportionallyDown
+        logoImageView.setContentHuggingPriority(.required, for: .horizontal)
+        logoImageView.translatesAutoresizingMaskIntoConstraints = false
+        logoImageView.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        logoImageView.widthAnchor.constraint(equalToConstant: 22).isActive = true
+        
+        // 2. Status Label with Monospaced Terminal Typography
+        statusLabel = NSTextField(labelWithString: "Antigravity Ready")
+        statusLabel.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)
+        statusLabel.textColor = NSColor(calibratedRed: 0.75, green: 0.80, blue: 0.90, alpha: 1.0)
         statusLabel.alignment = .left
         statusLabel.lineBreakMode = .byTruncatingTail
+        statusLabel.maximumNumberOfLines = 1
         statusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        statusLabel.translatesAutoresizingMaskIntoConstraints = false
+        statusLabel.heightAnchor.constraint(equalToConstant: 30).isActive = true
         
-        // Yes Button (Vibrant Green)
-        yesButton = NSButton(title: " ✓ Yes (y) ", target: self, action: #selector(handleYes))
+        // 3. Close Button ("Esc")
+        closeButton = NSButton(title: " Esc ", target: self, action: #selector(dismissTouchBar))
+        closeButton.bezelStyle = .rounded
+        closeButton.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .bold)
+        closeButton.bezelColor = NSColor(calibratedRed: 0.20, green: 0.22, blue: 0.26, alpha: 1.0)
+        
+        // 4. Yes Button (Terminal Green - No Emojis)
+        yesButton = NSButton(title: " Yes (y) ", target: self, action: #selector(handleYes))
         yesButton.bezelStyle = .rounded
-        yesButton.font = NSFont.systemFont(ofSize: 13, weight: .bold)
-        yesButton.bezelColor = NSColor(calibratedRed: 0.18, green: 0.80, blue: 0.44, alpha: 1.0)
+        yesButton.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
+        yesButton.bezelColor = NSColor(calibratedRed: 0.10, green: 0.45, blue: 0.22, alpha: 1.0)
         
-        // No Button (Vibrant Red)
-        noButton = NSButton(title: " ✗ No (n) ", target: self, action: #selector(handleNo))
+        // 5. No Button (Terminal Red - No Emojis)
+        noButton = NSButton(title: " No (n) ", target: self, action: #selector(handleNo))
         noButton.bezelStyle = .rounded
-        noButton.font = NSFont.systemFont(ofSize: 13, weight: .bold)
-        noButton.bezelColor = NSColor(calibratedRed: 0.90, green: 0.25, blue: 0.25, alpha: 1.0)
+        noButton.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
+        noButton.bezelColor = NSColor(calibratedRed: 0.50, green: 0.12, blue: 0.15, alpha: 1.0)
         
-        // Always Button (Slate Gray)
+        // 6. Always Button (Terminal Slate - No Emojis)
         alwaysButton = NSButton(title: " Always (a) ", target: self, action: #selector(handleAlways))
         alwaysButton.bezelStyle = .rounded
-        alwaysButton.font = NSFont.systemFont(ofSize: 12, weight: .medium)
-        alwaysButton.bezelColor = NSColor(calibratedRed: 0.35, green: 0.38, blue: 0.45, alpha: 1.0)
+        alwaysButton.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
+        alwaysButton.bezelColor = NSColor(calibratedRed: 0.22, green: 0.25, blue: 0.32, alpha: 1.0)
     }
     
     private func setupTouchBar() {
@@ -117,6 +175,7 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         tb.delegate = self
         tb.defaultItemIdentifiers = [
             closeItemId,
+            logoItemId,
             statusItemId,
             .flexibleSpace,
             yesItemId,
@@ -130,9 +189,11 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         DFRBridge.shared.setCloseBox(shows: true)
         
         let item = NSCustomTouchBarItem(identifier: trayItemId)
-        let btn = NSButton(title: "AGY ✦", target: self, action: #selector(toggleTouchBar))
+        let btn = NSButton(title: " AGY", target: self, action: #selector(toggleTouchBar))
         btn.bezelStyle = .rounded
-        btn.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
+        btn.image = makeAntigravityLogo(size: NSSize(width: 13, height: 13))
+        btn.imagePosition = .imageLeft
+        btn.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .bold)
         item.view = btn
         self.trayItem = item
         
@@ -150,9 +211,12 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
             
         case closeItemId:
             let item = NSCustomTouchBarItem(identifier: identifier)
-            let btn = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close") ?? NSImage(), target: self, action: #selector(dismissTouchBar))
-            btn.bezelStyle = .rounded
-            item.view = btn
+            item.view = closeButton
+            return item
+            
+        case logoItemId:
+            let item = NSCustomTouchBarItem(identifier: identifier)
+            item.view = logoImageView
             return item
             
         case statusItemId:
@@ -192,7 +256,7 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     func presentTouchBar() {
         guard let tb = touchBar else { return }
         if NSTouchBar.responds(to: presentSel) {
-            _ = NSTouchBar.perform(presentSel, with: tb, with: trayItemId.rawValue as NSString)
+            _ = (NSTouchBar.self as AnyObject).perform(presentSel, with: tb, with: trayItemId.rawValue as NSString)
             isPresented = true
         }
     }
@@ -200,27 +264,28 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     @objc func dismissTouchBar() {
         guard let tb = touchBar else { return }
         if NSTouchBar.responds(to: dismissSel) {
-            _ = NSTouchBar.perform(dismissSel, with: tb)
+            _ = (NSTouchBar.self as AnyObject).perform(dismissSel, with: tb)
             isPresented = false
         }
     }
     
     @objc func handleYes() {
         sendKeystrokeToTerminal("y\n")
-        flashFeedback("Approved ✓")
+        flashFeedback("Approved (y)")
     }
     
     @objc func handleNo() {
         sendKeystrokeToTerminal("n\n")
-        flashFeedback("Denied ✗")
+        flashFeedback("Denied (n)")
     }
     
     @objc func handleAlways() {
         sendKeystrokeToTerminal("a\n")
-        flashFeedback("Always Allowed")
+        flashFeedback("Always Allowed (a)")
     }
     
     private func flashFeedback(_ text: String) {
+        stopPulseAnimation()
         statusLabel.stringValue = text
         yesButton.isHidden = true
         noButton.isHidden = true
@@ -233,57 +298,129 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
             self.currentState = state
             self.autoDismissTimer?.invalidate()
             
-            let showButtons = state.showYesNo ?? (state.state == "confirm" || state.state == "command")
+            // Buttons are strictly hidden unless showYesNo is explicitly true
+            let showButtons = state.showYesNo ?? false
             self.yesButton.isHidden = !showButtons
             self.noButton.isHidden = !showButtons
             self.alwaysButton.isHidden = !showButtons
             
             switch state.state {
             case "thinking":
-                self.startThinkingAnimation(detail: state.detail ?? "")
+                let detail = state.detail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let labelText = detail.isEmpty ? "Thinking..." : "Thinking: " + detail
+                self.startPulseAnimation(text: labelText)
                 self.presentTouchBar()
                 
-            case "command", "confirm":
-                self.stopThinkingAnimation()
+            case "running", "command":
+                let cmd = state.command ?? state.detail ?? "Command"
+                let clean = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
+                let truncated = clean.count > 36 ? String(clean.prefix(33)) + "..." : clean
+                let labelText = "Running: " + truncated
+                self.startPulseAnimation(text: labelText)
+                self.presentTouchBar()
+                
+            case "confirm", "prompt":
+                self.stopPulseAnimation()
                 let cmd = state.command ?? state.detail ?? "Action"
-                let truncated = cmd.count > 38 ? String(cmd.prefix(35)) + "..." : cmd
-                self.statusLabel.stringValue = "⚡️ " + truncated
+                let clean = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
+                let truncated = clean.count > 32 ? String(clean.prefix(29)) + "..." : clean
+                self.statusLabel.stringValue = "Confirm: " + truncated
                 self.presentTouchBar()
                 
-            case "tool_done":
-                self.stopThinkingAnimation()
-                self.statusLabel.stringValue = "✅ Completed"
+            case "done", "tool_done":
+                self.stopPulseAnimation()
+                self.statusLabel.stringValue = "Completed"
                 
             case "idle":
-                self.stopThinkingAnimation()
-                self.statusLabel.stringValue = "✨ Antigravity Ready"
-                // Auto-minimize after 6 seconds of idle to return to regular app touchbar
-                self.autoDismissTimer = Timer.scheduledTimer(withTimeInterval: 6.0, repeats: false) { [weak self] _ in
+                self.stopPulseAnimation()
+                self.statusLabel.stringValue = "Antigravity Ready"
+                // Auto-minimize after 5 seconds of idle to restore normal Touch Bar
+                self.autoDismissTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
                     self?.dismissTouchBar()
                 }
                 
             default:
-                self.stopThinkingAnimation()
-                self.statusLabel.stringValue = state.title ?? "✨ Antigravity"
+                self.stopPulseAnimation()
+                self.statusLabel.stringValue = state.title ?? "Antigravity"
             }
         }
     }
     
-    private func startThinkingAnimation(detail: String) {
-        thinkingTimer?.invalidate()
+    // MARK: - Terminal Blue Wave Shimmer Animation
+    private func startPulseAnimation(text: String) {
+        activeAnimText = text
+        if isAnimating && pulseTimer != nil { return }
+        
+        isAnimating = true
         spinnerIndex = 0
-        let suffix = detail.isEmpty ? "" : " - " + detail
-        thinkingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        wavePhase = 0
+        pulseTimer?.invalidate()
+        
+        pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.065, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            let frame = self.spinnerFrames[self.spinnerIndex % self.spinnerFrames.count]
-            self.statusLabel.stringValue = "🧠 Thinking " + frame + suffix
-            self.spinnerIndex += 1
+            self.renderPulseFrame()
         }
     }
     
-    private func stopThinkingAnimation() {
-        thinkingTimer?.invalidate()
-        thinkingTimer = nil
+    private func renderPulseFrame() {
+        let spinnerChar = spinnerFrames[spinnerIndex % spinnerFrames.count]
+        spinnerIndex += 1
+        
+        let prefix = spinnerChar + " "
+        let text = activeAnimText
+        let full = prefix + text
+        let attrStr = NSMutableAttributedString(string: full)
+        
+        let font = NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)
+        attrStr.addAttribute(.font, value: font, range: NSRange(location: 0, length: full.utf16.count))
+        
+        // Spinner Dot: Intense Cyan
+        let spinnerColor = NSColor(calibratedRed: 0.25, green: 0.80, blue: 1.0, alpha: 1.0)
+        attrStr.addAttribute(.foregroundColor, value: spinnerColor, range: NSRange(location: 0, length: prefix.utf16.count))
+        
+        let textStart = prefix.utf16.count
+        let textLen = text.utf16.count
+        
+        if textLen > 0 {
+            let phase = wavePhase % textLen
+            wavePhase += 1
+            
+            for i in 0..<textLen {
+                let charIndex = textStart + i
+                var dist = abs(i - phase)
+                if dist > textLen / 2 {
+                    dist = textLen - dist
+                }
+                
+                let color: NSColor
+                if dist == 0 {
+                    // Pulse Peak: Glowing Pure Ice-Blue
+                    color = NSColor(calibratedRed: 0.85, green: 0.95, blue: 1.0, alpha: 1.0)
+                } else if dist == 1 {
+                    // High Wave: Electric Cyan
+                    color = NSColor(calibratedRed: 0.40, green: 0.80, blue: 1.0, alpha: 1.0)
+                } else if dist == 2 {
+                    // Mid Wave: Antigravity Blue
+                    color = NSColor(calibratedRed: 0.22, green: 0.55, blue: 0.98, alpha: 1.0)
+                } else if dist == 3 {
+                    // Tail: Deep Sapphire
+                    color = NSColor(calibratedRed: 0.15, green: 0.38, blue: 0.75, alpha: 0.90)
+                } else {
+                    // Base: Sleek Cool Terminal Slate
+                    color = NSColor(calibratedRed: 0.55, green: 0.60, blue: 0.72, alpha: 0.85)
+                }
+                
+                attrStr.addAttribute(.foregroundColor, value: color, range: NSRange(location: charIndex, length: 1))
+            }
+        }
+        
+        statusLabel.attributedStringValue = attrStr
+    }
+    
+    private func stopPulseAnimation() {
+        isAnimating = false
+        pulseTimer?.invalidate()
+        pulseTimer = nil
     }
     
     // MARK: - Send Keystroke to Active Terminal
@@ -359,8 +496,8 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         
         readState(from: path)
         
-        // Fast polling timer (every 0.25s) for instant response
-        Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        // Fast polling timer (every 0.2s)
+        Timer.scheduledTimer(withTimeInterval: 0.20, repeats: true) { [weak self] _ in
             self?.readState(from: path)
         }
         

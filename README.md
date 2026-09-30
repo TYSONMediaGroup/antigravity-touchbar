@@ -1,56 +1,59 @@
-# ✦ Antigravity Touch Bar for macOS & Ghostty
+# Antigravity Touch Bar for macOS & Ghostty
 
-[![macOS](https://img.shields.io/badge/macOS-12.0%2B-black?logo=apple&logoColor=white)](https://apple.com)
-[![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift&logoColor=white)](https://swift.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen.svg)](#)
+A native, zero-dependency macOS Touch Bar companion for Google Antigravity CLI (`agy`) and Ghostty terminal.
 
-A **100% native, free, zero-dependency macOS Touch Bar companion** for Google Antigravity CLI (`agy`) and Ghostty terminal. 
-
-Brings your MacBook Touch Bar to life with real-time agent status, animated thinking indicators, and physical, color-coded **`✓ Yes`** and **`✗ No`** buttons whenever the agent asks for confirmation.
+Brings the terminal's native CLI aesthetics to your MacBook Touch Bar: live braille dot orbit spinners, dynamic blue wave pulse shimmer across running commands, and interactive `Yes (y)` / `No (n)` confirmation buttons when prompts appear.
 
 ---
 
-## ⚡️ Touch Bar Preview
+## Touch Bar Layout
 
-### 1. Agent Thinking
+### 1. Model Thinking
 ```
-┌───┬─────────────────────────────────────────────────────────────────────────┐
-│ ✕ │  🧠 Thinking ⠋ Searching codebase...                                    │
-└───┴─────────────────────────────────────────────────────────────────────────┘
++-----+-----------------------------------------------------------------------+
+| Esc | [✦]  ⠋ Thinking: Searching codebase...                                |
++-----+-----------------------------------------------------------------------+
 ```
 
-### 2. Command Proposed / Confirmation Needed
+### 2. Command Executing (Blue Wave Shimmer Pulse)
 ```
-┌───┬──────────────────────────────┬───────────────┬──────────────┬───────────┐
-│ ✕ │  ⚡️ git push origin main     │   ✓ Yes (y)   │   ✗ No (n)   │ Always(a) │
-└───┴──────────────────────────────┴───────────────┴──────────────┴───────────┘
++-----+-----------------------------------------------------------------------+
+| Esc | [✦]  ⠹ Running: cargo test --all...                                   |
++-----+-----------------------------------------------------------------------+
 ```
-*Tapping **`✓ Yes`** or **`✗ No`** instantly brings Ghostty forward and sends `y` + `Enter` or `n` + `Enter`.*
+*The command text dynamically pulses with an electric-blue shimmer across the OLED display.*
 
-### 3. Idle / Control Strip
+### 3. Interactive Confirmation Needed
 ```
-┌─────────────────────────────────────────────────────────────┬───────┬───────┐
-│  (Normal App Touch Bar / Finder / IDE)                      │ AGY ✦ │  Vol  │
-└─────────────────────────────────────────────────────────────┴───────┴───────┘
++-----+----------------------------+-------------+------------+---------------+
+| Esc | [✦]  Confirm: Run deploy   |   Yes (y)   |   No (n)   |   Always (a)  |
++-----+----------------------------+-------------+------------+---------------+
 ```
-*When idle, it minimizes after 6 seconds to the **`AGY ✦`** button in the Control Strip.*
+*Tapping `Yes` or `No` brings Ghostty forward and sends `y` + `Enter` or `n` + `Enter` directly to the active terminal process.*
+
+### 4. Idle / Control Strip
+```
++-----------------------------------------------------------+---------+-------+
+| (Active Application Touch Bar Controls)                   | [✦] AGY |  Vol  |
++-----------------------------------------------------------+---------+-------+
+```
+*When idle, the bar minimizes after 5 seconds to the `[✦] AGY` button in the Control Strip. Tap anytime to expand.*
 
 ---
 
-## ✨ Features
+## Features
 
-- **Zero External Dependencies**: Does **not** require BetterTouchTool, third-party apps, or paid licenses.
-- **Pure Native Swift**: Uses Apple's native AppKit and Touch Bar Control Strip APIs (`DFRSystemModal`).
-- **Interactive Yes/No Buttons**: Tap `[ ✓ Yes ]` (green) or `[ ✗ No ]` (red) directly on the Touch Bar to approve or deny proposed CLI commands.
-- **Live Thinking Animation**: Braille spinner indicator rotates dynamically while the LLM generates answers.
-- **Terminal Integration**: Optimized for Ghostty (`com.mitchellh.ghostty`), with automatic fallback to Terminal, iTerm2, Alacritty, or Kitty.
-- **Background Daemon**: Runs as a lightweight macOS `LaunchAgent` (~8MB RAM, 0% CPU idle).
-- **One-Command Install & Uninstall**.
+- Zero External Dependencies: Built entirely with Apple AppKit and Touch Bar APIs (`DFRFoundation`, `NSTouchBar`). Does not require BetterTouchTool, paid software, or third-party utilities.
+- Terminal-Matched Aesthetics: Monospaced typography, rotating braille dot orbit indicators, and an animated electric-blue pulse wave that sweeps across executing commands.
+- Vector Antigravity Logo: Features the Antigravity four-point sparkle star logo rendered cleanly in pure vector curves.
+- Zero Emojis: Clean, distraction-free developer interface matching professional terminal tools.
+- Dual-Mode Keystroke Dispatcher: Uses low-level macOS CoreGraphics events (`CGEventPostToPid`) targeting Ghostty, with automatic fallbacks for Terminal.app, iTerm2, Alacritty, and Kitty.
+- Lightweight Background Daemon: Runs as a native background `LaunchAgent` (~7MB RAM, 0% CPU at idle).
+- Single-Command Installer: Automated compilation and lifecycle hook registration.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone the repository
 ```bash
@@ -58,57 +61,58 @@ git clone https://github.com/TYSONMediaGroup/antigravity-touchbar.git
 cd antigravity-touchbar
 ```
 
-### 2. Run the installer
+### 2. Install
 ```bash
 ./install.sh
 ```
 
-That's it! Look at your MacBook's Touch Bar: you'll see the **`AGY ✦`** icon in your Control Strip.
+The installer compiles the native application bundle (`AntigravityTouchBar.app`), registers the Antigravity CLI lifecycle hooks, and loads the background LaunchAgent. You will see the `[✦] AGY` icon appear in your MacBook Touch Bar Control Strip.
 
 ---
 
-## 🛠 How It Works
+## Architecture
 
 ```
 Antigravity CLI (agy)
-       │
-       ▼ (Lifecycle Hooks: PreInvocation, PreToolUse, PostToolUse, Stop)
+       |
+       v (Lifecycle Hooks: PreInvocation, PreToolUse, PostToolUse, Stop)
 touchbar_hook.py
-       │
-       ▼ (Sub-millisecond state updates)
+       |
+       v (Sub-millisecond state updates)
 touchbar_state.json
-       │
-       ▼ (kqueue watcher & event loop)
-AntigravityTouchBar (Native Swift Daemon)
-       │
-       ▼ (Apple System Modal / Control Strip APIs)
-MacBook Touch Bar Display (Live Status + Interactive Yes/No Buttons)
+       |
+       v (kqueue kernel watcher & 60ms pulse animation loop)
+AntigravityTouchBar.app (Native Swift Daemon)
+       |
+       v (Apple System Modal / DFRFoundation)
+MacBook Touch Bar Display (Dynamic Blue Wave Shimmer + Touch Controls)
 ```
 
-1. **Lifecycle Hooks**: Whenever `agy` runs, it calls `touchbar_hook.py` on state transitions (`PreInvocation`, `PreToolUse`, `PostToolUse`, `Stop`).
-2. **State Sync**: The hook writes current state to `~/.gemini/antigravity-cli/touchbar_state.json`.
-3. **Swift Daemon**: `antigravity-touchbar` monitors this file via kernel `kqueue` notifications and instantly presents the Touch Bar UI.
-4. **Keystroke Injection**: When a touch button is tapped, the daemon brings your terminal to front and dispatches the keystroke (`y\n`, `n\n`, or `a\n`).
+1. Lifecycle Hooks: When `agy` executes, it triggers `touchbar_hook.py` on state transitions (`PreInvocation`, `PreToolUse`, `PostToolUse`, `Stop`).
+2. State Dispatch: The hook writes structured states to `~/.gemini/antigravity-cli/touchbar_state.json`.
+3. Swift Daemon: `AntigravityTouchBar` receives file notifications and drives the Touch Bar OLED display with custom CoreGraphics rendering.
+4. Terminal Focus: Tapping a touch control sends the corresponding keystroke directly into Ghostty.
 
 ---
 
-## ⚙️ Configuration & Customization
+## Customization
 
-You can adjust colors, fonts, or auto-dismiss timeouts in [`src/AntigravityTouchBar.swift`](src/AntigravityTouchBar.swift):
+You can adjust colors, pulse wave speeds, and auto-dismiss timeouts in [`src/AntigravityTouchBar.swift`](src/AntigravityTouchBar.swift):
 
-- **Auto-dismiss timeout**: Change `TimeInterval = 6.0` to keep the bar open longer or shorter when returning to idle.
-- **Button styling**: Change `bezelColor` RGB values for `yesButton` or `noButton`.
+- Auto-dismiss timeout: Edit `TimeInterval = 5.0` in `update(state:)` to change how long the bar remains visible after returning to idle.
+- Pulse shimmer colors: Modify the RGB constants in `renderPulseFrame()` to customize the blue wave gradient.
+- Button colors: Modify the `bezelColor` values in `setupUI()`.
 
-After making changes, recompile and update with:
+After modifying, recompile and reinstall with:
 ```bash
 make install
 ```
 
 ---
 
-## 🗑 Uninstallation
+## Uninstallation
 
-To cleanly remove the daemon, LaunchAgent, and hooks:
+To cleanly remove the daemon, LaunchAgent, and hook registrations:
 
 ```bash
 ./uninstall.sh
@@ -116,6 +120,6 @@ To cleanly remove the daemon, LaunchAgent, and hooks:
 
 ---
 
-## 📄 License
+## License
 
-MIT License © 2026 Tyler Custine (TYSONMediaGroup). See [LICENSE](LICENSE) for details.
+MIT License. Copyright (c) 2026 Tyler Custine (TYSONMediaGroup). See [LICENSE](LICENSE) for details.

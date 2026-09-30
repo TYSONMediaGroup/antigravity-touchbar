@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Antigravity Lifecycle Hook for Touch Bar Integration
-Relays agent execution loop events (thinking, tool execution, prompts, idle)
+Relays agent execution loop events (thinking, running commands, questions, idle)
 to the native macOS Touch Bar daemon in real time.
 """
 import sys
@@ -55,7 +55,7 @@ def main():
         pass
 
     if event_type == "pre_invocation":
-        write_state(state="thinking", title="Thinking...", detail="", show_yes_no=False)
+        write_state(state="thinking", title="Thinking", detail="", show_yes_no=False)
         # PreInvocation contract: expects injectSteps array
         print(json.dumps({"injectSteps": []}))
         
@@ -64,29 +64,28 @@ def main():
         tool_name = tool_call.get("name", "tool")
         args = tool_call.get("args", {})
         
-        cmd = ""
-        if tool_name == "run_command":
+        if tool_name == "ask_question":
+            # Interactive prompt where user choices are presented
+            write_state(state="confirm", title="Confirm Choice", detail="Select Option", show_yes_no=True, command="Select Option")
+        elif tool_name == "run_command":
             cmd = args.get("CommandLine", "").strip()
-            write_state(state="confirm", title="Confirm Command", detail=cmd, show_yes_no=True, command=cmd)
+            write_state(state="running", title="Running", detail=cmd, show_yes_no=False, command=cmd)
         elif tool_name in ("write_to_file", "replace_file_content"):
             target = os.path.basename(args.get("TargetFile", ""))
-            desc = f"{tool_name} ({target})"
-            write_state(state="command", title="Editing File", detail=desc, show_yes_no=False, command=desc)
-        elif tool_name == "ask_question":
-            write_state(state="confirm", title="Question Prompt", detail="Select Option", show_yes_no=True, command="Question")
+            write_state(state="running", title="Writing", detail=target, show_yes_no=False, command=f"Edit {target}")
         else:
-            write_state(state="command", title=f"Running {tool_name}", detail=tool_name, show_yes_no=False, command=tool_name)
+            write_state(state="running", title="Executing", detail=tool_name, show_yes_no=False, command=tool_name)
             
         # CRITICAL: PreToolUse contract requires decision: "allow"
         print(json.dumps({"decision": "allow"}))
         
     elif event_type == "post_tool":
-        write_state(state="tool_done", title="Completed", detail="", show_yes_no=False)
+        write_state(state="done", title="Completed", detail="", show_yes_no=False)
         # PostToolUse contract: expects empty JSON object {}
         print(json.dumps({}))
         
     elif event_type == "stop":
-        write_state(state="idle", title="Antigravity Ready", detail="", show_yes_no=False)
+        write_state(state="idle", title="Ready", detail="", show_yes_no=False)
         # Stop contract: expects decision: ""
         print(json.dumps({"decision": ""}))
         

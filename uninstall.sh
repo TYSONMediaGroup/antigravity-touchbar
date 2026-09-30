@@ -12,7 +12,7 @@ PLIST_PATH="$HOME/Library/LaunchAgents/com.google.antigravity.touchbar.plist"
 if [[ -f "$PLIST_PATH" ]]; then
     launchctl unload "$PLIST_PATH" 2>/dev/null || true
     rm -f "$PLIST_PATH"
-    echo -e "${GREEN}✓ Removed LaunchAgent${NC}"
+    echo -e "${GREEN}[OK] Removed LaunchAgent${NC}"
 fi
 
 # 2. Kill daemon process if running
@@ -31,7 +31,7 @@ if os.path.exists(config_path):
             del data["touchbar-integration"]
             with open(config_path, "w") as f:
                 json.dump(data, f, indent=2)
-            print("✓ Removed hook from ~/.gemini/config/hooks.json")
+            print("[OK] Removed hook from ~/.gemini/config/hooks.json")
     except Exception:
         pass
 EOF

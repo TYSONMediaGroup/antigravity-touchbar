@@ -47,12 +47,12 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS"
 echo "Compiling native Touch Bar daemon..."
 swiftc -O -o "$APP_BUNDLE/Contents/MacOS/antigravity-touchbar" "$SCRIPT_DIR/src/AntigravityTouchBar.swift"
 cp "$SCRIPT_DIR/resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
-echo -e "${GREEN}✓ Built AntigravityTouchBar.app bundle${NC}"
+echo -e "${GREEN}[OK] Built AntigravityTouchBar.app bundle${NC}"
 
 # 5. Copy Hook Script
 cp "$SCRIPT_DIR/hooks/touchbar_hook.py" "$TARGET_SCRIPTS_DIR/touchbar_hook.py"
 chmod +x "$TARGET_SCRIPTS_DIR/touchbar_hook.py"
-echo -e "${GREEN}✓ Installed lifecycle hook script${NC}"
+echo -e "${GREEN}[OK] Installed lifecycle hook script${NC}"
 
 # 6. Initialize State File
 if [[ ! -f "$HOME/.gemini/antigravity-cli/touchbar_state.json" ]]; then
@@ -70,7 +70,7 @@ fi
 # 7. Ensure Touch Bar Control Strip is enabled
 CURRENT_MODE=$(defaults read com.apple.touchbar.agent PresentationModeGlobal 2>/dev/null || echo "appWithControlStrip")
 if [[ "$CURRENT_MODE" == "app" ]]; then
-    echo -e "${YELLOW}Enabling macOS Control Strip so 'AGY ✦' icon is visible...${NC}"
+    echo -e "${YELLOW}Enabling macOS Control Strip so AGY icon is visible...${NC}"
     defaults write com.apple.touchbar.agent PresentationModeGlobal -string appWithControlStrip
 fi
 
@@ -130,7 +130,7 @@ data["touchbar-integration"] = {
 with open(config_path, "w") as f:
     json.dump(data, f, indent=2)
 
-print("✓ Registered lifecycle hooks in ~/.gemini/config/hooks.json")
+print("[OK] Registered lifecycle hooks in ~/.gemini/config/hooks.json")
 EOF
 
 # 9. Setup macOS LaunchAgent
@@ -162,8 +162,8 @@ EOF
 pkill -f "antigravity-touchbar" 2>/dev/null || true
 launchctl unload "$PLIST_PATH" 2>/dev/null || true
 launchctl load "$PLIST_PATH"
-echo -e "${GREEN}✓ Loaded background LaunchAgent${NC}"
+echo -e "${GREEN}[OK] Loaded background LaunchAgent${NC}"
 
-echo -e "\n${GREEN}=== Installation Complete! ===${NC}"
-echo "You will now see 'AGY ✦' on your MacBook Touch Bar Control Strip."
-echo "Live thinking states, command prompts, and [ ✓ Yes ] / [ ✗ No ] touch controls are ready!"
+echo -e "\n${GREEN}=== Installation Complete ===${NC}"
+echo "Antigravity Touch Bar companion is now active."
+echo "Running commands will display with terminal dot animation and blue wave pulse."
