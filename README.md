@@ -4,6 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen.svg)](#)
 
+> [!IMPORTANT]
+> **Current version is v0.1:** _**ALPHA**__ this is not necessarily a stable release _yet_. [Read the Antigravity-Touchbar guide](https://myt5s.app/tysonmediagroup/antigravity-touchbar/).
+
 A native, zero-dependency macOS Touch Bar companion for Google Antigravity CLI (`agy`) and Ghostty terminal.
 
 Brings the terminal's native CLI aesthetics to your MacBook Touch Bar: live braille dot orbit spinners, dynamic blue wave pulse shimmer across running commands, and interactive `Yes (y)` / `No (n)` confirmation buttons when prompts appear.
