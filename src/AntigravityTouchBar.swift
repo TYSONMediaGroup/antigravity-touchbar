@@ -88,7 +88,7 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
     // CLI Terminal Braille Dot Orbit Frames
     private let spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     
-    private var currentState: AgentState = AgentState(state: "idle", title: "Ready", detail: nil, showYesNo: false, command: nil)
+    private var currentState: AgentState = AgentState(state: "idle", title: "Property of TYSON Media Group", detail: nil, showYesNo: false, command: nil)
     private var isPresented = false
     private var lastTimestamp: Double = 0.0
     
@@ -97,29 +97,31 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         setupUI()
         setupTouchBar()
         setupControlStrip()
+        showIdleBranding()
+        presentTouchBar()
         startFileWatcher()
     }
     
-    // MARK: - UI Construction (Terminal-Matched, Optically Centered)
+    // MARK: - UI Construction
     private func setupUI() {
-        // 1. Official Antigravity Rocket Logo
-        let logoImg = makeAntigravityLogo(size: NSSize(width: 14, height: 14))
-        logoImageView = NSImageView(image: logoImg)
+        // 1. Dynamic Logo (Apple logo when idle, Antigravity rocket when active)
+        let appleLogo = NSImage(systemSymbolName: "apple.logo", accessibilityDescription: "Apple") ?? NSImage()
+        logoImageView = NSImageView(image: appleLogo)
         logoImageView.imageScaling = .scaleProportionallyDown
         logoImageView.setContentHuggingPriority(.required, for: .horizontal)
         logoImageView.translatesAutoresizingMaskIntoConstraints = false
         logoImageView.heightAnchor.constraint(equalToConstant: 30).isActive = true
-        logoImageView.widthAnchor.constraint(equalToConstant: 20).isActive = true
+        logoImageView.widthAnchor.constraint(equalToConstant: 18).isActive = true
         
         // 2. Status Label with Vertically Centered Custom Cell
-        statusLabel = NSTextField(frame: NSRect(x: 0, y: 0, width: 400, height: 30))
-        statusLabel.cell = VerticallyCenteredTextFieldCell(textCell: "Antigravity Ready")
+        statusLabel = NSTextField(frame: NSRect(x: 0, y: 0, width: 450, height: 30))
+        statusLabel.cell = VerticallyCenteredTextFieldCell(textCell: "Property of TYSON Media Group")
         statusLabel.isEditable = false
         statusLabel.isSelectable = false
         statusLabel.isBordered = false
         statusLabel.backgroundColor = .clear
-        statusLabel.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)
-        statusLabel.textColor = NSColor(calibratedRed: 0.75, green: 0.80, blue: 0.90, alpha: 1.0)
+        statusLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        statusLabel.textColor = NSColor(calibratedRed: 0.88, green: 0.90, blue: 0.94, alpha: 1.0)
         statusLabel.alignment = .left
         statusLabel.lineBreakMode = .byTruncatingTail
         statusLabel.maximumNumberOfLines = 1
@@ -127,29 +129,33 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         statusLabel.heightAnchor.constraint(equalToConstant: 30).isActive = true
         
-        // 3. Close Button ("Esc")
+        // 3. Close Button ("Esc") - Hidden when showing idle property banner
         closeButton = NSButton(title: " Esc ", target: self, action: #selector(dismissTouchBar))
         closeButton.bezelStyle = .rounded
         closeButton.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .bold)
         closeButton.bezelColor = NSColor(calibratedRed: 0.18, green: 0.20, blue: 0.24, alpha: 1.0)
+        closeButton.isHidden = true
         
         // 4. Yes Button (Terminal Green - No Emojis)
         yesButton = NSButton(title: " Yes (y) ", target: self, action: #selector(handleYes))
         yesButton.bezelStyle = .rounded
         yesButton.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
         yesButton.bezelColor = NSColor(calibratedRed: 0.10, green: 0.45, blue: 0.22, alpha: 1.0)
+        yesButton.isHidden = true
         
         // 5. No Button (Terminal Red - No Emojis)
         noButton = NSButton(title: " No (n) ", target: self, action: #selector(handleNo))
         noButton.bezelStyle = .rounded
         noButton.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
         noButton.bezelColor = NSColor(calibratedRed: 0.50, green: 0.12, blue: 0.15, alpha: 1.0)
+        noButton.isHidden = true
         
         // 6. Always Button (Terminal Slate - No Emojis)
         alwaysButton = NSButton(title: " Always (a) ", target: self, action: #selector(handleAlways))
         alwaysButton.bezelStyle = .rounded
         alwaysButton.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
         alwaysButton.bezelColor = NSColor(calibratedRed: 0.22, green: 0.25, blue: 0.32, alpha: 1.0)
+        alwaysButton.isHidden = true
     }
     
     private func setupTouchBar() {
@@ -273,6 +279,11 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         yesButton.isHidden = true
         noButton.isHidden = true
         alwaysButton.isHidden = true
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self = self, self.currentState.state == "idle" || self.currentState.state == "done" else { return }
+            self.showIdleBranding()
+        }
     }
     
     // MARK: - State Update
@@ -280,49 +291,90 @@ class AntigravityTouchBarController: NSObject, NSTouchBarDelegate {
         DispatchQueue.main.async {
             self.currentState = state
             
-            // Buttons are visible whenever not thinking (commands, prompts, actions, ready)
-            let showButtons = (state.state != "thinking")
-            self.yesButton.isHidden = !showButtons
-            self.noButton.isHidden = !showButtons
-            self.alwaysButton.isHidden = !showButtons
-            
             switch state.state {
             case "thinking":
+                self.logoImageView.image = makeAntigravityLogo(size: NSSize(width: 14, height: 14))
+                self.closeButton.isHidden = false
+                self.yesButton.isHidden = true
+                self.noButton.isHidden = true
+                self.alwaysButton.isHidden = true
+                
                 let detail = state.detail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let labelText = detail.isEmpty ? "Thinking..." : "Thinking: " + detail
                 self.startPulseAnimation(text: labelText)
                 self.presentTouchBar()
                 
             case "running", "command":
+                self.logoImageView.image = makeAntigravityLogo(size: NSSize(width: 14, height: 14))
+                self.closeButton.isHidden = false
+                self.yesButton.isHidden = false
+                self.noButton.isHidden = false
+                self.alwaysButton.isHidden = false
+                
                 let cmd = state.command ?? state.detail ?? "Command"
                 let clean = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
-                let truncated = clean.count > 36 ? String(clean.prefix(33)) + "..." : clean
+                let truncated = clean.count > 34 ? String(clean.prefix(31)) + "..." : clean
                 let labelText = "Running: " + truncated
                 self.startPulseAnimation(text: labelText)
                 self.presentTouchBar()
                 
             case "confirm", "prompt":
+                self.logoImageView.image = makeAntigravityLogo(size: NSSize(width: 14, height: 14))
+                self.closeButton.isHidden = false
+                self.yesButton.isHidden = false
+                self.noButton.isHidden = false
+                self.alwaysButton.isHidden = false
+                
                 self.stopPulseAnimation()
                 let cmd = state.command ?? state.detail ?? "Action"
                 let clean = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
-                let truncated = clean.count > 32 ? String(clean.prefix(29)) + "..." : clean
+                let truncated = clean.count > 30 ? String(clean.prefix(27)) + "..." : clean
                 self.statusLabel.stringValue = "Confirm: " + truncated
+                self.statusLabel.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)
+                self.statusLabel.textColor = NSColor(calibratedRed: 0.85, green: 0.88, blue: 0.95, alpha: 1.0)
                 self.presentTouchBar()
                 
             case "done", "tool_done":
+                self.logoImageView.image = makeAntigravityLogo(size: NSSize(width: 14, height: 14))
+                self.closeButton.isHidden = false
+                self.yesButton.isHidden = true
+                self.noButton.isHidden = true
+                self.alwaysButton.isHidden = true
+                
                 self.stopPulseAnimation()
                 self.statusLabel.stringValue = "Completed"
+                self.statusLabel.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)
+                self.statusLabel.textColor = NSColor(calibratedRed: 0.40, green: 0.85, blue: 0.50, alpha: 1.0)
+                
+                // Return to Property of TYSON Media Group after 2.5 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                    guard let self = self, self.currentState.state == "done" || self.currentState.state == "idle" else { return }
+                    self.showIdleBranding()
+                }
                 
             case "idle":
                 self.stopPulseAnimation()
-                self.statusLabel.stringValue = "Antigravity Ready"
-                // Keep Antigravity Ready visible on Touch Bar; user can tap Esc to dismiss anytime
+                self.showIdleBranding()
+                self.presentTouchBar()
                 
             default:
                 self.stopPulseAnimation()
-                self.statusLabel.stringValue = state.title ?? "Antigravity"
+                self.showIdleBranding()
+                self.presentTouchBar()
             }
         }
+    }
+    
+    // MARK: - Idle Property of TYSON Media Group Branding
+    private func showIdleBranding() {
+        logoImageView.image = NSImage(systemSymbolName: "apple.logo", accessibilityDescription: "Apple")
+        statusLabel.stringValue = "Property of TYSON Media Group"
+        statusLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        statusLabel.textColor = NSColor(calibratedRed: 0.88, green: 0.90, blue: 0.94, alpha: 1.0)
+        closeButton.isHidden = true
+        yesButton.isHidden = true
+        noButton.isHidden = true
+        alwaysButton.isHidden = true
     }
     
     // MARK: - Terminal Blue Wave Shimmer Animation
