@@ -1,8 +1,17 @@
-# Antigravity Touch Bar for macOS & Ghostty
-[![macOS](https://img.shields.io/badge/macOS-12.0%2B-black?logo=apple&logoColor=white)](https://apple.com)
-[![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift&logoColor=white)](https://swift.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen.svg)](#)
+<p align="center">
+  <a href="https://tysonmediagroup.org">
+    <img src="https://raw.githubusercontent.com/TYSONMediaGroup/tysonmediagroup.org.myt5s.app/main/assets/LOGOSFORGEMINI/TYSONMediaGroupBanner.png" alt="TYSON Media Group" width="700">
+  </a>
+</p>
+
+<h1 align="center">Antigravity Touch Bar for macOS & Ghostty</h1>
+
+<p align="center">
+  <a href="https://apple.com"><img src="https://img.shields.io/badge/macOS-12.0%2B-black?logo=apple&logoColor=white" alt="macOS"></a>
+  <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift&logoColor=white" alt="Swift"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Dependencies-Zero-brightgreen.svg" alt="Zero Dependencies"></a>
+</p>
 
 > [!IMPORTANT]
 > **Current version is v0.1:** _**ALPHA**__ this is not necessarily a stable release _yet_. [Read the Antigravity-Touchbar guide](https://myt5s.app/tysonmediagroup/antigravity-touchbar/).
