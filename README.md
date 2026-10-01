@@ -1,4 +1,8 @@
 # Antigravity Touch Bar for macOS & Ghostty
+[![macOS](https://img.shields.io/badge/macOS-12.0%2B-black?logo=apple&logoColor=white)](https://apple.com)
+[![Swift](https://img.shields.io/badge/Swift-6.0%2B-orange?logo=swift&logoColor=white)](https://swift.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen.svg)](#)
 
 A native, zero-dependency macOS Touch Bar companion for Google Antigravity CLI (`agy`) and Ghostty terminal.
 
